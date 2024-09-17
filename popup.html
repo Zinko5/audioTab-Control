@@ -1,25 +1,26 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <title>AudioTab Control</title>
-    <style>
-      body {
-        width: 200px;
-        font-family: Arial, sans-serif;
-        margin: 10px;
-      }
-    </style>
-  </head>
-  <body>
-    <h2>Control de Audio</h2>
-    <div>
-      <label for="volumen">Volumen: </label>
-      <input type="range" id="volumen" min="0" max="100" value="100">
-    </div>
-    <div>
-      <label for="mono">Modo mono: </label>
-      <input type="checkbox" id="mono">
-    </div>
-    <script src="popup.js"></script>
-  </body>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Audio Tab Control</title>
+  <style>
+    body {
+      width: 200px;
+    }
+  </style>
+</head>
+<body>
+  <div class="center">
+    <label id="vol_label" for="volumen">100%</label>
+    <input id="volumen" type="range" min="0" max="5" step="0.01" value="1">
+
+    <label for="mono">Mono</label>
+    <input id="mono" type="checkbox">
+
+    <button id="reset">Reset to 100%</button>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
 </html>

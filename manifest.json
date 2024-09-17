@@ -1,19 +1,19 @@
 {
-    "manifest_version": 2,
-    "name": "audioTab Control",
-    "version": "1.0",
-    "description": "Controla el volumen y cambia entre modo mono y estéreo en una pestaña específica.",
-    "icons": {
-      "48": "icoaudiotabcontrol.png"
-    },
-    "browser_action": {
-      "default_popup": "popup.html",
-      "default_icon": "icoaudiotabcontrol.png"
-    },
-    "permissions": [
-      "activeTab",
-      "tabs",
-      "storage"
-    ]
-  }
-  
+  "manifest_version": 2,
+  "name": "audioTab Control",
+  "version": "1.0",
+  "description": "Controla el volumen y cambia entre modo mono y estéreo en una pestaña específica.",
+  "icons": {
+    "48": "icoaudiotabcontrol.png"
+  },
+  "browser_action": {
+    "default_popup": "popup.html",
+    "default_icon": "icoaudiotabcontrol.png"
+  },
+  "permissions": [
+    "activeTab",
+    "tabs",
+    "storage",
+    "webNavigation"
+  ]
+}
