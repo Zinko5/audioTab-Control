@@ -8,19 +8,23 @@
         font-family: Arial, sans-serif;
         margin: 10px;
       }
+      .button {
+        margin-top: 10px;
+      }
     </style>
   </head>
   <body>
     <h2>Control de Audio</h2>
     <div>
-      <label id="vol_label" for="volumen">100%</label>
+      <label for="volumen">Volumen: </label>
       <input type="range" id="volumen" min="0" max="2" step="0.01" value="1">
+      <span id="vol_label">100%</span>
     </div>
     <div>
       <label for="mono">Modo mono: </label>
       <input type="checkbox" id="mono">
     </div>
-    <button id="reset">Restablecer al 100%</button>
+    <button id="reset" class="button">Restablecer al 100%</button>
     <script src="popup.js"></script>
   </body>
 </html>

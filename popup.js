@@ -9,40 +9,68 @@ function updatePopup() {
     browser.storage.local.get([`volume_${tabId}`, `mono_${tabId}`]).then(data => {
       if (data[`volume_${tabId}`] !== undefined) {
         document.getElementById('volumen').value = data[`volume_${tabId}`];
+        document.getElementById('vol_label').textContent = `${(data[`volume_${tabId}`] * 100).toFixed()}%`;
       }
       if (data[`mono_${tabId}`] !== undefined) {
         document.getElementById('mono').checked = data[`mono_${tabId}`];
       }
-      // Actualizar la etiqueta del volumen
-      updateVolumeLabel(data[`volume_${tabId}`] || 1); // 1 es el valor base
     });
   });
-}
-
-// Función para actualizar la etiqueta del volumen
-function updateVolumeLabel(value) {
-  document.getElementById('vol_label').textContent = `${(value * 100).toFixed()}%`;
 }
 
 // Cambiar el volumen del audio en la pestaña
 document.getElementById('volumen').addEventListener('input', function() {
-  let volume = this.value; // Rango 0 a 2
+  let volume = parseFloat(this.value);  // Rango de 0 a 2
   getActiveTabId().then(tabId => {
     browser.tabs.executeScript(tabId, {
-      code: `document.querySelectorAll('audio, video').forEach(el => el.volume = Math.min(Math.max(${volume}, 0), 1));`
+      code: `
+        let volume = ${volume};
+        document.querySelectorAll('audio, video').forEach(el => {
+          if (!el.dataset.audioContext) {
+            let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            let source = audioCtx.createMediaElementSource(el);
+            let gainNode = audioCtx.createGain();
+            
+            source.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            el.dataset.audioContext = 'true';
+            el.dataset.gainNode = gainNode;
+          } else {
+            let gainNode = el.dataset.gainNode;
+            if (gainNode) {
+              gainNode.gain.value = volume;
+            }
+          }
+        });
+      `
     });
 
     // Guardar el volumen en el almacenamiento local de la pestaña
     browser.storage.local.set({[`volume_${tabId}`]: volume});
+    document.getElementById('vol_label').textContent = `${(volume * 100).toFixed()}%`;
   });
-  // Actualizar la etiqueta del volumen
-  updateVolumeLabel(volume);
 });
 
 // Restablecer el volumen al 100%
 document.getElementById('reset').addEventListener('click', function() {
-  document.getElementById('volumen').value = 1; // Valor 1 corresponde al 100%
-  document.getElementById('volumen').dispatchEvent(new Event('input')); // Disparar evento para actualizar el volumen
+  getActiveTabId().then(tabId => {
+    document.getElementById('volumen').value = 1;  // 1 = 100%
+    document.getElementById('vol_label').textContent = '100%';
+
+    browser.tabs.executeScript(tabId, {
+      code: `
+        document.querySelectorAll('audio, video').forEach(el => {
+          if (el.dataset.gainNode) {
+            el.dataset.gainNode.gain.value = 1; // Restablece al 100%
+          }
+        });
+      `
+    });
+
+    // Guardar el volumen en el almacenamiento local de la pestaña
+    browser.storage.local.set({[`volume_${tabId}`]: 1});
+  });
 });
 
 // Cambiar entre modo mono y estéreo
@@ -52,15 +80,28 @@ document.getElementById('mono').addEventListener('change', function() {
     browser.tabs.executeScript(tabId, {
       code: mono ? `
         document.querySelectorAll('audio, video').forEach(el => {
-          if (!el.dataset.isMono) {
+          if (!el.audioCtx || el.dataset.isMono === 'false') {
+            // Si ya existe un contexto de audio, desconectar las conexiones previas
+            if (el.source) {
+              el.source.disconnect();
+            }
+            if (el.merger) {
+              el.merger.disconnect();
+            }
+            if (el.audioCtx) {
+              el.audioCtx.close();
+            }
+            
+            // Crear un nuevo contexto de audio para el modo mono
             let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             let source = audioCtx.createMediaElementSource(el);
             let merger = audioCtx.createChannelMerger(2);
-
+            
             source.connect(merger, 0, 0);
             source.connect(merger, 0, 1);
             merger.connect(audioCtx.destination);
-
+            
+            // Guardar las referencias en el elemento
             el.audioCtx = audioCtx;
             el.source = source;
             el.merger = merger;
@@ -70,16 +111,25 @@ document.getElementById('mono').addEventListener('change', function() {
       ` : `
         document.querySelectorAll('audio, video').forEach(el => {
           if (el.dataset.isMono === 'true') {
-            // Desconectar el modo mono
+            // Desconectar las conexiones del modo mono
+            if (el.source) {
+              el.source.disconnect();
+            }
             if (el.merger) {
               el.merger.disconnect();
-              el.source.disconnect();
-              el.source.connect(el.audioCtx.destination); // Reconectar el audio de vuelta a su flujo normal
             }
-            el.audioCtx = null;
-            el.source = null;
-            el.merger = null;
+            // Conectar de nuevo el audio original al destino sin efectos
+            let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            let source = audioCtx.createMediaElementSource(el);
+            source.connect(audioCtx.destination);
+            
+            // Limpiar los datos del modo mono
             el.dataset.isMono = 'false';
+            if (el.audioCtx) {
+              el.audioCtx.close();
+            }
+            el.audioCtx = audioCtx;
+            el.source = source;
           }
         });
       `
