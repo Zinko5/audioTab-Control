@@ -19,16 +19,18 @@ function updatePopup() {
 
 // Cambiar el volumen del audio en la pestaña
 document.getElementById('volumen').addEventListener('input', function() {
-  let volume = this.value / 100;
+  let volumePercentage = this.value;
+  let volume = (volumePercentage / 100) ** 2; // Aplicar escala logarítmica
   getActiveTabId().then(tabId => {
     browser.tabs.executeScript(tabId, {
       code: `document.querySelectorAll('audio, video').forEach(el => el.volume = ${volume});`
     });
 
     // Guardar el volumen en el almacenamiento local de la pestaña
-    browser.storage.local.set({[`volume_${tabId}`]: this.value});
+    browser.storage.local.set({[`volume_${tabId}`]: volumePercentage});
   });
 });
+
 
 // Cambiar entre modo mono y estéreo
 document.getElementById('mono').addEventListener('change', function() {
