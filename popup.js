@@ -37,15 +37,28 @@ document.getElementById('mono').addEventListener('change', function() {
     browser.tabs.executeScript(tabId, {
       code: mono ? `
         document.querySelectorAll('audio, video').forEach(el => {
-          if (!el.dataset.isMono) {
+          if (!el.audioCtx || el.dataset.isMono === 'false') {
+            // Si ya existe un contexto de audio, desconectar las conexiones previas
+            if (el.source) {
+              el.source.disconnect();
+            }
+            if (el.merger) {
+              el.merger.disconnect();
+            }
+            if (el.audioCtx) {
+              el.audioCtx.close();
+            }
+            
+            // Crear un nuevo contexto de audio para el modo mono
             let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             let source = audioCtx.createMediaElementSource(el);
             let merger = audioCtx.createChannelMerger(2);
-
+            
             source.connect(merger, 0, 0);
             source.connect(merger, 0, 1);
             merger.connect(audioCtx.destination);
-
+            
+            // Guardar las referencias en el elemento
             el.audioCtx = audioCtx;
             el.source = source;
             el.merger = merger;
@@ -55,16 +68,25 @@ document.getElementById('mono').addEventListener('change', function() {
       ` : `
         document.querySelectorAll('audio, video').forEach(el => {
           if (el.dataset.isMono === 'true') {
-            // Desconectar el modo mono
+            // Desconectar las conexiones del modo mono
+            if (el.source) {
+              el.source.disconnect();
+            }
             if (el.merger) {
               el.merger.disconnect();
-              el.source.disconnect();
-              el.source.connect(el.audioCtx.destination); // Reconectar el audio de vuelta a su flujo normal
             }
-            el.audioCtx = null;
-            el.source = null;
-            el.merger = null;
+            // Conectar de nuevo el audio original al destino sin efectos
+            let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            let source = audioCtx.createMediaElementSource(el);
+            source.connect(audioCtx.destination);
+            
+            // Limpiar los datos del modo mono
             el.dataset.isMono = 'false';
+            if (el.audioCtx) {
+              el.audioCtx.close();
+            }
+            el.audioCtx = audioCtx;
+            el.source = source;
           }
         });
       `
