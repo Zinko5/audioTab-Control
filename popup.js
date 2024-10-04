@@ -9,7 +9,6 @@ function updatePopup() {
     browser.storage.local.get([`volume_${tabId}`, `mono_${tabId}`]).then(data => {
       if (data[`volume_${tabId}`] !== undefined) {
         document.getElementById('volumen').value = data[`volume_${tabId}`];
-        document.getElementById('vol_label').textContent = `${(data[`volume_${tabId}`] * 100).toFixed()}%`;
       }
       if (data[`mono_${tabId}`] !== undefined) {
         document.getElementById('mono').checked = data[`mono_${tabId}`];
@@ -20,56 +19,26 @@ function updatePopup() {
 
 // Cambiar el volumen del audio en la pestaña
 document.getElementById('volumen').addEventListener('input', function() {
-  let volume = parseFloat(this.value);  // Rango de 0 a 2
+  let volume = this.value / 100;  // Este valor ahora puede ir de 0 a 2
   getActiveTabId().then(tabId => {
     browser.tabs.executeScript(tabId, {
       code: `
-        let volume = ${volume};
         document.querySelectorAll('audio, video').forEach(el => {
-          if (!el.dataset.audioContext) {
+          if (!el.audioCtx) {
             let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             let source = audioCtx.createMediaElementSource(el);
             let gainNode = audioCtx.createGain();
-            
-            source.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
-            
-            el.dataset.audioContext = 'true';
-            el.dataset.gainNode = gainNode;
-          } else {
-            let gainNode = el.dataset.gainNode;
-            if (gainNode) {
-              gainNode.gain.value = volume;
-            }
+            source.connect(gainNode).connect(audioCtx.destination);
+            el.audioCtx = audioCtx;
+            el.gainNode = gainNode;
           }
+          el.gainNode.gain.value = ${volume};  // Aumenta o reduce el volumen
         });
       `
     });
 
     // Guardar el volumen en el almacenamiento local de la pestaña
-    browser.storage.local.set({[`volume_${tabId}`]: volume});
-    document.getElementById('vol_label').textContent = `${(volume * 100).toFixed()}%`;
-  });
-});
-
-// Restablecer el volumen al 100%
-document.getElementById('reset').addEventListener('click', function() {
-  getActiveTabId().then(tabId => {
-    document.getElementById('volumen').value = 1;  // 1 = 100%
-    document.getElementById('vol_label').textContent = '100%';
-
-    browser.tabs.executeScript(tabId, {
-      code: `
-        document.querySelectorAll('audio, video').forEach(el => {
-          if (el.dataset.gainNode) {
-            el.dataset.gainNode.gain.value = 1; // Restablece al 100%
-          }
-        });
-      `
-    });
-
-    // Guardar el volumen en el almacenamiento local de la pestaña
-    browser.storage.local.set({[`volume_${tabId}`]: 1});
+    browser.storage.local.set({[`volume_${tabId}`]: this.value});
   });
 });
 
@@ -81,55 +50,49 @@ document.getElementById('mono').addEventListener('change', function() {
       code: mono ? `
         document.querySelectorAll('audio, video').forEach(el => {
           if (!el.audioCtx || el.dataset.isMono === 'false') {
-            // Si ya existe un contexto de audio, desconectar las conexiones previas
-            if (el.source) {
-              el.source.disconnect();
-            }
-            if (el.merger) {
-              el.merger.disconnect();
-            }
-            if (el.audioCtx) {
-              el.audioCtx.close();
-            }
-            
-            // Crear un nuevo contexto de audio para el modo mono
+            if (el.source) el.source.disconnect();
+            if (el.merger) el.merger.disconnect();
+            if (el.gainNode) el.gainNode.disconnect();
+            if (el.audioCtx) el.audioCtx.close();
+
+            // Crear el contexto de audio
             let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             let source = audioCtx.createMediaElementSource(el);
             let merger = audioCtx.createChannelMerger(2);
-            
+            let gainNode = audioCtx.createGain();  // Aplicar ganancia aquí
+
+            // Fusión para modo mono: el canal izquierdo y derecho serán iguales
             source.connect(merger, 0, 0);
             source.connect(merger, 0, 1);
-            merger.connect(audioCtx.destination);
+            merger.connect(gainNode).connect(audioCtx.destination);
             
-            // Guardar las referencias en el elemento
+            // Guardar referencias
             el.audioCtx = audioCtx;
             el.source = source;
             el.merger = merger;
+            el.gainNode = gainNode;
             el.dataset.isMono = 'true';
           }
         });
       ` : `
         document.querySelectorAll('audio, video').forEach(el => {
           if (el.dataset.isMono === 'true') {
-            // Desconectar las conexiones del modo mono
-            if (el.source) {
-              el.source.disconnect();
-            }
-            if (el.merger) {
-              el.merger.disconnect();
-            }
-            // Conectar de nuevo el audio original al destino sin efectos
+            // Desconectar mono
+            if (el.source) el.source.disconnect();
+            if (el.merger) el.merger.disconnect();
+            if (el.gainNode) el.gainNode.disconnect();
+
+            // Reconectar sin modo mono (estéreo original)
             let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             let source = audioCtx.createMediaElementSource(el);
-            source.connect(audioCtx.destination);
+            let gainNode = audioCtx.createGain();  // Aplicar ganancia también en estéreo
+            source.connect(gainNode).connect(audioCtx.destination);
             
-            // Limpiar los datos del modo mono
-            el.dataset.isMono = 'false';
-            if (el.audioCtx) {
-              el.audioCtx.close();
-            }
+            // Guardar referencias
             el.audioCtx = audioCtx;
             el.source = source;
+            el.gainNode = gainNode;
+            el.dataset.isMono = 'false';
           }
         });
       `
@@ -139,6 +102,7 @@ document.getElementById('mono').addEventListener('change', function() {
     browser.storage.local.set({[`mono_${tabId}`]: mono});
   });
 });
+
 
 // Al abrir el popup, actualizar el estado
 updatePopup();
