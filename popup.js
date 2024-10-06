@@ -19,7 +19,35 @@ function updatePopup() {
 
 // Cambiar el volumen del audio en la pestaña
 document.getElementById('volumen').addEventListener('input', function() {
-  let volume = this.value / 100;  // Este valor ahora puede ir de 0 a 2
+  let volume = this.value / 100;  // Este valor ahora puede ir de 0 a 5
+  document.getElementById('volumen-valor').textContent = `${this.value}%`;  // Actualizar el porcentaje mostrado
+  getActiveTabId().then(tabId => {
+    browser.tabs.executeScript(tabId, {
+      code: `
+        document.querySelectorAll('audio, video').forEach(el => {
+          if (!el.audioCtx) {
+            let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            let source = audioCtx.createMediaElementSource(el);
+            let gainNode = audioCtx.createGain();
+            source.connect(gainNode).connect(audioCtx.destination);
+            el.audioCtx = audioCtx;
+            el.gainNode = gainNode;
+          }
+          el.gainNode.gain.value = ${volume};  // Aumenta o reduce el volumen
+        });
+      `
+    });
+
+    // Guardar el volumen en el almacenamiento local de la pestaña
+    browser.storage.local.set({[`volume_${tabId}`]: this.value});
+  });
+});
+
+// Restablecer el volumen al 100%
+document.getElementById('reset-volumen').addEventListener('click', function() {
+  document.getElementById('volumen').value = 100; // Restablecer el control deslizante al 100%
+  let volume = 1; 
+  document.getElementById('volumen-valor').textContent = `100%`;
   getActiveTabId().then(tabId => {
     browser.tabs.executeScript(tabId, {
       code: `
@@ -102,7 +130,6 @@ document.getElementById('mono').addEventListener('change', function() {
     browser.storage.local.set({[`mono_${tabId}`]: mono});
   });
 });
-
 
 // Al abrir el popup, actualizar el estado
 updatePopup();
